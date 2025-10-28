@@ -1,0 +1,52 @@
+version: "3.9"
+services:
+  kafka:
+    image: bitnami/kafka:3.7
+    hostname: kafka
+    container_name: kafka
+    environment:
+      - KAFKA_ENABLE_KRAFT=yes
+      - KAFKA_CFG_NODE_ID=1
+      - KAFKA_CFG_PROCESS_ROLES=broker,controller
+      - KAFKA_CFG_CONTROLLER_QUORUM_VOTERS=1@kafka:9093
+      - KAFKA_CFG_LISTENERS=PLAINTEXT://:9092,CONTROLLER://:9093,EXTERNAL://:19092
+      - KAFKA_CFG_ADVERTISED_LISTENERS=PLAINTEXT://kafka:9092,EXTERNAL://localhost:19092
+      - KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP=PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT,EXTERNAL:PLAINTEXT
+      - KAFKA_CFG_CONTROLLER_LISTENER_NAMES=CONTROLLER
+      - KAFKA_CFG_INTER_BROKER_LISTENER_NAME=PLAINTEXT
+      - KAFKA_CFG_AUTO_CREATE_TOPICS_ENABLE=true
+      - ALLOW_PLAINTEXT_LISTENER=yes
+    ports:
+      - "19092:19092"
+
+  sidecar:
+    # Pre-built image from GitHub Container Registry (recommended)
+    # Replace YOUR_USERNAME with actual GitHub username before using
+    # image: ghcr.io/yeogirlyun/sentio_lite:latest
+
+    # To build locally instead of using GHCR, comment out the 'image:' line above
+    # and uncomment the 'build:' section below:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.unified
+
+    container_name: sentio-sidecar
+    depends_on:
+      - kafka
+    environment:
+      - MODE=${MODE}
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - TOPIC_PREFIX=sentio.
+      - STRATEGY=SIGOR
+      - HEARTBEAT_INTERVAL_MS=${HEARTBEAT_INTERVAL_MS:-10000}
+      - TEST_DATE=${TEST_DATE}
+      - REPLAY_SPEED_MS=${REPLAY_SPEED_MS:-60000}
+      - DATA_DIR=/app/data/equities
+      - EXT=.bin
+      - POLYGON_API_KEY=${POLYGON_API_KEY}
+    volumes:
+      - ../data:/app/data:ro
+      - ../logs:/app/logs
+      - ./output:/app/output
+
+
