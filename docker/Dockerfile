@@ -1,74 +1,36 @@
-# Unified sidecar: builds engine + runs Python sidecar (replay/live)
+# Sentio Sidecar - Python-only image for Kafka streaming backend
+# This image contains the Kafka sidecar and web dashboard
+# The C++ engine binary should be provided separately or run on host
 
-# ============================
-# Builder image (engine)
-# ============================
-FROM debian:bookworm AS builder
-
-ARG DEBIAN_FRONTEND=noninteractive
-
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential \
-    cmake \
-    git \
-    pkg-config \
-    libeigen3-dev \
-    librdkafka-dev \
-    && rm -rf /var/lib/apt/lists/*
-
-WORKDIR /app
-
-COPY . /app
-
-RUN rm -rf build && cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
-    && cmake --build build -j
-
-# ============================
-# Runtime image (engine + python sidecar)
-# ============================
-FROM python:3.11-slim AS runtime
+FROM python:3.11-slim
 
 ARG DEBIAN_FRONTEND=noninteractive
 
+# Install runtime dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
-    libstdc++6 \
-    libgcc-s1 \
-    libeigen3-dev \
     librdkafka1 \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-# Copy engine binary
-COPY --from=builder /app/build/sentio_lite /usr/local/bin/sentio_lite
+# Copy all application files
+COPY tools/ /app/tools/
+COPY requirements.txt /app/
+COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh
 
-# Copy repo for tools and configs
-COPY . /app
+# Install Python dependencies
+RUN pip install --no-cache-dir -r requirements.txt && \
+    chmod +x /usr/local/bin/entrypoint.sh
 
-# Python deps for sidecar
-RUN pip install --no-cache-dir \
-    confluent-kafka \
-    polygon-api-client
-
-# Defaults (override at runtime)
+# Environment variables
 ENV MODE=replay \
-    STRATEGY=sigor \
-    TEST_DATE=2025-10-22 \
-    REPLAY_SPEED_MS=60000 \
-    HEARTBEAT_INTERVAL_MS=10000 \
-    KAFKA_BOOTSTRAP_SERVERS=kafka:9092 \
-    TOPIC_PREFIX=sentio. \
-    DATA_DIR=/app/data \
-    EXT=.bin
+    TEST_DATE=2025-10-27 \
+    KAFKA_BOOTSTRAP_SERVERS=localhost:19092 \
+    FLASK_PORT=5001
 
-# Note: Removed VOLUME directive to allow config files to be baked into image
-# Volumes are defined in docker-compose.yml instead
+# Expose webapp port
+EXPOSE 5001
 
-# Entrypoint
-COPY docker/entrypoint.unified.sh /usr/local/bin/entrypoint.unified.sh
-RUN chmod +x /usr/local/bin/entrypoint.unified.sh
-
-ENTRYPOINT ["/usr/local/bin/entrypoint.unified.sh"]
-
-
+# Default command runs the webapp
+CMD ["python3", "/app/tools/kafka_monitor_webapp.py"]
