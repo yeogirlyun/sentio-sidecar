@@ -70,8 +70,8 @@ replay_state = {
 }
 replay_process = None  # Docker compose process
 
-# Kafka configuration
-KAFKA_BOOTSTRAP = "localhost:19092"
+# Kafka configuration (prefer env overrides)
+KAFKA_BOOTSTRAP = os.getenv("KAFKA_BOOTSTRAP", os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:19092"))
 # Paths for Docker Compose (short aliases to keep lines short)
 PROJECT_ROOT = "/Volumes/MyBookDuo/Projects/sentio_lite"
 COMPOSE_FILE = os.path.join(PROJECT_ROOT, "docker/docker-compose.unified.yml")
